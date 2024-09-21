@@ -1,24 +1,31 @@
-import { Boot } from "./scenes/Boot";
-import { Game as MainGame } from "./scenes/Game";
-import { Leaderboard } from "./scenes/Leaderboard";
-import { MainMenu } from "./scenes/MainMenu";
+// src/main.ts
+import Phaser from "phaser";
+import BootScene from "./scenes/BootScene";
 import { Preloader } from "./scenes/Preloader";
+import { Leaderboard } from "./scenes/LeaderboardScene";
+import GameScene from "./scenes/GameScene";
+import { MenuScene } from "./scenes/MenuScene";
+import UIScene from "./scenes/UIScene";
 
-import { Game, Types } from "phaser";
-
-//  Find out more information about the Game Config at:
-//  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig
-const config: Types.Core.GameConfig = {
+const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 1024,
-  height: 768,
+  width: 1024, // Adjust as needed
+  height: 768, // Adjust as needed
+  backgroundColor: "#EEEFE9",
+  physics: {
+    default: "arcade",
+    arcade: {
+      debug: false,
+    },
+  },
   parent: "game-container",
-  backgroundColor: "#334F37",
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [Boot, Preloader, MainMenu, MainGame, Leaderboard],
+  scene: [BootScene, Preloader, MenuScene, GameScene, Leaderboard, UIScene],
 };
 
-export default new Game(config);
+window.addEventListener("load", () => {
+  new Phaser.Game(config);
+});
