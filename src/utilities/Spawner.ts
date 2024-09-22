@@ -1,7 +1,7 @@
 // src/utilities/Spawner.ts
 import Phaser from "phaser";
 import Item from "../objects/Item";
-import { GameConstants } from "../consts";
+import { GameConstants, itemSettings } from "../consts";
 
 export default class Spawner {
   private scene: Phaser.Scene;
@@ -26,7 +26,7 @@ export default class Spawner {
 
   startSpawningHiddenItems() {
     this.scene.time.addEvent({
-      delay: 1000, // Adjust spawn rate as needed
+      delay: 1050, // Adjust spawn rate as needed
       callback: this.spawnHiddenItems,
       callbackScope: this,
       loop: true,
@@ -44,7 +44,7 @@ export default class Spawner {
     const randomLane = Phaser.Utils.Array.GetRandom(this.lanes);
     const hiddenItem = new Item(
       this.scene,
-      950,
+      1000,
       randomLane,
       hiddenItemTexture,
       {
@@ -77,7 +77,7 @@ export default class Spawner {
 
       const item = new Item(
         this.scene,
-        950, // Start at the right edge of the screen
+        1050, // Start at the right edge of the screen
         laneY,
         texture,
         {
@@ -89,23 +89,21 @@ export default class Spawner {
       currentItemsGroup.add(item);
     });
 
-    // Adjust the speed of the group together
-    currentItemsGroup.setVelocityX(GameConstants.SPEED_AT_FIRST_STAGE); // Adjust speed as needed
-
     // Save this item group to later handle flashlight activation
     this.scene.events.emit("newItemGroup", groupId, currentItemsGroup);
   }
 
   getRandomValueForItem(itemType: string): number {
-    switch (itemType) {
-      case "shoppingCart":
-        return Phaser.Math.FloatBetween(0.1, 0.5);
-      case "megaphone":
-        return Phaser.Math.Between(5, 20);
-      case "stopwatch":
-        return Phaser.Math.Between(1, 5);
-      default:
-        return 0;
+    const settings = itemSettings[itemType];
+
+    if (!settings) {
+      // Return 0 if the item type doesn't exist in the dictionary
+      return 0;
     }
+
+    // If it's a percentage, return a float value between min and max, otherwise return an integer
+    return settings.isFloatRange
+      ? Phaser.Math.FloatBetween(settings.min, settings.max)
+      : Phaser.Math.Between(settings.min, settings.max);
   }
 }

@@ -9,6 +9,19 @@ export const GameConstants = {
   LANE_Y_POSITIONS: [300, 400, 500],
   LANE_DRAWING_Y_POSITIONS: [250, 350, 450, 550],
   TEXT_COLOR: "#F55001",
-  SPEED_AT_FIRST_STAGE: -500,
+  SPEED_AT_FIRST_STAGE: -200,
   // Other constants...
+};
+
+export const itemSettings: {
+  [key: string]: {
+    isPercentage: boolean;
+    isFloatRange: boolean;
+    min: number;
+    max: number;
+  };
+} = {
+  shoppingCart: { isPercentage: true, isFloatRange: true, min: 0.1, max: 0.5 },
+  megaphone: { isPercentage: false, isFloatRange: false, min: 5, max: 20 },
+  stopwatch: { isPercentage: true, isFloatRange: false, min: 1, max: 5 },
 };

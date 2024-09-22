@@ -26,11 +26,14 @@ export class Preloader extends Scene {
     //  Load the assets for the game - Replace with your own assets
     this.load.setPath("assets");
 
-    this.load.image("player-default", "player-default.png");
-    this.load.image("hog-flashlight", "hog-flashlight.png");
-    this.load.image("shoppingCart", "shopping-cart.png");
+    this.load.image("player-default", "playerDefault.png");
+    this.load.image("player-flashlight", "playerFlashlight.png");
+    this.load.image("shoppingCart", "shoppingCart.png");
     this.load.image("megaphone", "megaphone.png");
     this.load.image("stopwatch", "stopwatch.png");
+    this.load.image("shoppingCartHighlighted", "shoppingCartHighlighted.png");
+    this.load.image("megaphoneHighlighted", "megaphoneHighlighted.png");
+    this.load.image("stopwatchHighlighted", "stopwatchHighlighted.png");
   }
 
   create() {

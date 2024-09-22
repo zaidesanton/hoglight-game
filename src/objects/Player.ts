@@ -34,20 +34,28 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         this.moveDown();
       });
     }
+
+    // Pointer input (click/tap)
+    this.scene.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.handlePointerInput(pointer);
+    });
   }
 
-  update(_cursors: Phaser.Types.Input.Keyboard.CursorKeys) {
-    // if (Phaser.Input.Keyboard.JustDown(cursors.up)) {
-    //   console.log("Player up pressed");
-    //   this.moveUp();
-    // } else if (Phaser.Input.Keyboard.JustDown(cursors.down)) {
-    //   this.moveDown();
-    //   console.log("Player down");
-    // }
+  // Handle pointer input (click/tap)
+  handlePointerInput(pointer: Phaser.Input.Pointer) {
+    // Check if the pointer is in the upper or lower part of the screen
+    const topThreshold = GameConstants.LANE_DRAWING_Y_POSITIONS[0]; // The Y position of the first lane
+    const bottomThreshold =
+      GameConstants.LANE_DRAWING_Y_POSITIONS[this.lanes.length - 1]; // The Y position of the last lane
+
+    if (pointer.y < topThreshold) {
+      this.moveUp();
+    } else if (pointer.y > bottomThreshold) {
+      this.moveDown();
+    }
   }
 
   moveUp() {
-    console.log("Player up pressed");
     if (this.currentLaneIndex > 0) {
       this.currentLaneIndex--;
       this.setY(this.lanes[this.currentLaneIndex]);
@@ -55,7 +63,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   moveDown() {
-    console.log("Player down pressed");
     if (this.currentLaneIndex < this.lanes.length - 1) {
       this.currentLaneIndex++;
       this.setY(this.lanes[this.currentLaneIndex]);

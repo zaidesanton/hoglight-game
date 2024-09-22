@@ -9,6 +9,8 @@ export default class GameScene extends Phaser.Scene {
   private player!: Player;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private itemGroups: { [key: string]: Phaser.Physics.Arcade.Group } = {};
+  private hiddenItems: Item[] = [];
+
   //private _spawner!: Spawner;
 
   // Game metrics
@@ -77,6 +79,8 @@ export default class GameScene extends Phaser.Scene {
       undefined,
       this
     );
+
+    this.hiddenItems.push(hiddenItem);
   }
 
   handleNewItemGroup(groupId: string, itemGroup: Phaser.Physics.Arcade.Group) {
@@ -89,6 +93,7 @@ export default class GameScene extends Phaser.Scene {
       this
     );
     this.itemGroups[groupId] = itemGroup;
+    itemGroup.setVelocityX(GameConstants.SPEED_AT_FIRST_STAGE);
   }
 
   drawLanes() {
@@ -187,27 +192,8 @@ export default class GameScene extends Phaser.Scene {
 
       this.updateMetrics(item.config.itemType, item.config.value);
 
-      // Create a visual effect at the item's position
-      const itemValue = Number.isInteger(item.config.value)
-        ? item.config.value
-        : item.config.value.toFixed(1);
-      const effect = this.add.text(item.x + 30, item.y, `+${itemValue}`, {
-        fontSize: "24px",
-        color: "#000000",
-        fontStyle: "bold",
-      });
-      this.tweens.add({
-        targets: effect,
-        y: item.y - 50,
-        alpha: 0.9,
-        duration: 400,
-        ease: "linear",
-        onComplete: () => {
-          effect.destroy();
-        },
-      });
+      item.collect();
 
-      item.destroy();
       if (item.config.groupId)
         this.deleteItemsInGroup(item.config.groupId, item);
     }
@@ -221,13 +207,7 @@ export default class GameScene extends Phaser.Scene {
       currentGroup.getChildren().forEach((groupItem) => {
         const currentItem = groupItem as Item;
         if (groupItem !== collectedItem && !currentItem.config.isHidden) {
-          currentItem.body.checkCollision.none = true;
-          this.tweens.add({
-            targets: groupItem,
-            alpha: 0,
-            duration: 100,
-            onComplete: () => groupItem.destroy(),
-          });
+          currentItem.fadeOut();
         }
       });
 
@@ -237,25 +217,24 @@ export default class GameScene extends Phaser.Scene {
   }
 
   activateFlashlight() {
-    Object.keys(this.itemGroups).forEach((groupId) => {
-      const itemGroup = this.itemGroups[groupId];
-
-      // Reveal hidden items and highlight best item in the group
-      itemGroup.getChildren().forEach((itemGO: GameObjects.GameObject) => {
-        const item = itemGO as Item;
-        if (item.alpha < 1) {
-          this.tweens.add({
-            targets: item,
-            alpha: 1,
-            duration: 100,
-            onComplete: () => (item.body.checkCollision.none = false),
-          });
-        }
+    this.hiddenItems.forEach((item: Item) => {
+      this.tweens.add({
+        targets: item,
+        alpha: 1,
+        duration: 100,
+        onComplete: () => {
+          if (item && item.body) item.body.checkCollision.none = false;
+        },
       });
+      item.revealText();
+    });
 
+    Object.keys(this.itemGroups).forEach((groupId) => {
       // Highlight the best item in the group
       const bestItem = this.getBestItemInGroup(groupId);
       if (bestItem) {
+        console.log(`Best item in group ${groupId}:`, bestItem.config.itemType);
+        bestItem.setTexture(`${bestItem.config.itemType}Highlighted`);
         bestItem.setTint(0xffd700); // Highlight with golden tint
       }
     });
