@@ -4,13 +4,13 @@ import Player from "../objects/Player";
 import Spawner from "../utilities/Spawner";
 import { GameConstants } from "../consts";
 import Item from "../objects/Item";
+import { Metrics } from "./UIScene";
 
 export default class GameScene extends Phaser.Scene {
   private player!: Player;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private itemGroups: { [key: string]: Phaser.Physics.Arcade.Group } = {};
   private hiddenItems: Item[] = [];
-
   //private _spawner!: Spawner;
 
   // Game metrics
@@ -20,38 +20,21 @@ export default class GameScene extends Phaser.Scene {
   private totalPurchases = 0;
   private retainedUsers = 0;
   private timeLeft = 60; // Game duration in seconds
+  private isFlashLightActive = false;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
   create() {
-    // Set up background, lanes, and metrics display
-    // ...
-
     // Initialize player
-    const startX = 100; // Adjust as needed
-    const startY = 300; // Adjust as needed (middle lane)
-    this.player = new Player(this, startX, startY);
+    const playerStartX = 50;
+    const playerStartY = GameConstants.LANE_Y_POSITIONS[1] - 5;
+
+    this.add.image(0, 0, "backgroundGame").setOrigin(0, 0).setDepth(-2);
+
+    this.player = new Player(this, playerStartX, playerStartY);
     this.add.existing(this.player);
-
-    // Set up game timer
-    this.time.addEvent({
-      delay: 1000,
-      callback: this.updateTimer,
-      callbackScope: this,
-      loop: true,
-    });
-
-    // Set up per-second scoring
-    this.time.addEvent({
-      delay: 1000,
-      callback: this.calculatePurchases,
-      callbackScope: this,
-      loop: true,
-    });
-
-    new Spawner(this, GameConstants.LANE_Y_POSITIONS);
 
     this.updateMetricsDisplay();
     this.drawLanes();
@@ -63,13 +46,47 @@ export default class GameScene extends Phaser.Scene {
     this.events.on("flashlightActivated", this.activateFlashlight, this);
     this.events.on("newItemGroup", this.handleNewItemGroup, this);
     this.events.on("hiddenItemCreated", this.handleHiddenItemCreated, this);
+    const UIScene = this.scene.get("UIScene");
+    UIScene.events.on("finishedTutorial", this.startGame, this);
   }
 
+  startGame() {
+    console.log("Start game called");
+    // Set up game timer
+    this.time.addEvent({
+      delay: 1000,
+      callback: this.updateTimer,
+      callbackScope: this,
+      loop: true,
+    });
+
+    // Set up per-second scoring
+    this.time.addEvent({
+      delay: 1000,
+      callback: this.updatePurchases,
+      callbackScope: this,
+      loop: true,
+    });
+
+    new Spawner(this, GameConstants.LANE_Y_POSITIONS);
+    this.time.paused = false;
+  }
+
+  calculateCurrentSpeed() {
+    let speed = GameConstants.SPEED_AT_FIRST_STAGE;
+    if (this.timeLeft <= GameConstants.THIRD_STAGE_SWITCH_TIME) {
+      speed = GameConstants.SPEED_AT_THIRD_STAGE;
+    } else if (this.timeLeft <= GameConstants.SECOND_STAGE_SWITCH_TIME) {
+      speed = GameConstants.SPEED_AT_SECOND_STAGE;
+    }
+
+    return speed;
+  }
   handleHiddenItemCreated(hiddenItem: Item) {
     this.physics.add.existing(hiddenItem);
 
     // Make sure the hidden item continues moving
-    hiddenItem.body.setVelocityX(GameConstants.SPEED_AT_FIRST_STAGE);
+    hiddenItem.body.setVelocityX(this.calculateCurrentSpeed());
 
     // Add physics overlap between player and hidden items
     this.physics.add.overlap(
@@ -81,6 +98,9 @@ export default class GameScene extends Phaser.Scene {
     );
 
     this.hiddenItems.push(hiddenItem);
+    if (this.isFlashLightActive) {
+      this.revealHiddenItem(hiddenItem);
+    }
   }
 
   handleNewItemGroup(groupId: string, itemGroup: Phaser.Physics.Arcade.Group) {
@@ -93,7 +113,10 @@ export default class GameScene extends Phaser.Scene {
       this
     );
     this.itemGroups[groupId] = itemGroup;
-    itemGroup.setVelocityX(GameConstants.SPEED_AT_FIRST_STAGE);
+    itemGroup.setVelocityX(this.calculateCurrentSpeed());
+    if (this.isFlashLightActive) {
+      this.markBestItemInGroup(groupId);
+    }
   }
 
   drawLanes() {
@@ -111,68 +134,103 @@ export default class GameScene extends Phaser.Scene {
     graphics.strokePath();
   }
 
-  updateMetricsDisplay() {
-    const metrics = {
+  updateMetricsDisplay(currentConversions?: number) {
+    const metrics: Metrics = {
       conversionRate: this.conversionRate,
       pageVisitsPerSecond: this.pageVisitsPerSecond,
       retentionRate: this.retentionRate,
-      totalPurchases: this.totalPurchases,
       timeLeft: this.timeLeft,
+      totalPurchases: this.totalPurchases,
+      currentConversions: currentConversions,
     };
-    this.events.emit("updateMetrics", metrics);
+    this.events.emit("updateMetricsDisplay", metrics);
   }
 
   update() {
     this.player.update(this.cursors);
   }
 
+  handleGameEnd() {
+    const highestPlayerScore = this.registry.get("playerScore") ?? 0;
+    if (this.totalPurchases > highestPlayerScore)
+      window.dispatchEvent(
+        new CustomEvent("scoreUpdate", {
+          detail: { score: this.totalPurchases },
+        })
+      );
+    this.registry.set("playerScore", this.totalPurchases);
+
+    this.scene.remove("UIScene");
+    this.scene.start("Leaderboard");
+  }
   updateTimer() {
     this.timeLeft--;
     if (this.timeLeft <= 0) {
-      // End the game
-      this.scene.stop("GameScene");
-
-      // Transition to post-game summary or main menu
+      this.handleGameEnd();
     }
 
     this.updateMetricsDisplay();
   }
 
-  calculatePurchases() {
+  calculatePurchases(
+    pageVisits: number,
+    retainedUsers: number,
+    conversionRate: number,
+    retentionRate: number
+  ) {
     // Total users for this second = new users + retained users from the previous second
-    const totalUsers = this.pageVisitsPerSecond + this.retainedUsers;
+    const totalUsers = pageVisits + retainedUsers;
+    const conversions = Math.floor(totalUsers * (conversionRate / 100));
 
-    const conversions = Math.floor(totalUsers * (this.conversionRate / 100));
-    this.totalPurchases += conversions;
-
-    this.retainedUsers = Math.floor(
-      (totalUsers - conversions) * (this.retentionRate / 100)
+    const nextRetainedUsers = Math.floor(
+      (totalUsers - conversions) * (retentionRate / 100)
     );
 
-    this.updateMetricsDisplay();
+    return {
+      conversions,
+      retainedUsers: nextRetainedUsers,
+      totalPurchases: this.totalPurchases + conversions,
+    };
+  }
+
+  updatePurchases() {
+    const { conversions, retainedUsers, totalPurchases } =
+      this.calculatePurchases(
+        this.pageVisitsPerSecond,
+        this.retainedUsers,
+        this.conversionRate,
+        this.retentionRate
+      );
+    this.totalPurchases = totalPurchases;
+    this.retainedUsers = retainedUsers;
+    this.updateMetricsDisplay(conversions);
   }
 
   // Method to update metrics when an item is collected
-  updateMetrics(type: string, value: number) {
+  getUpdatedMetrics(type: string, value: number) {
+    let conversionRate = this.conversionRate;
+    let pageVisitsPerSecond = this.pageVisitsPerSecond;
+    let retentionRate = this.retentionRate;
+
     switch (type) {
-      case "shoppingCart":
-        this.conversionRate = Math.min(
-          this.conversionRate + value,
+      case "conversion":
+        conversionRate = Math.min(
+          conversionRate + value,
           GameConstants.MAX_CONVERSION_RATE
         );
         break;
-      case "megaphone":
-        this.pageVisitsPerSecond += value;
+      case "funnel":
+        pageVisitsPerSecond += value;
         break;
-      case "stopwatch":
-        this.retentionRate = Math.min(
-          this.retentionRate + value,
+      case "retention":
+        retentionRate = Math.min(
+          retentionRate + value,
           GameConstants.MAX_RETENTION_RATE
         );
         break;
     }
 
-    this.updateMetricsDisplay();
+    return { conversionRate, retentionRate, pageVisitsPerSecond };
   }
 
   handleItemCollection(
@@ -190,7 +248,12 @@ export default class GameScene extends Phaser.Scene {
     ) {
       const item = itemGO as Item;
 
-      this.updateMetrics(item.config.itemType, item.config.value);
+      const { conversionRate, retentionRate, pageVisitsPerSecond } =
+        this.getUpdatedMetrics(item.config.itemType, item.config.value);
+      this.conversionRate = conversionRate;
+      this.retentionRate = retentionRate;
+      this.pageVisitsPerSecond = pageVisitsPerSecond;
+      this.updateMetricsDisplay();
 
       item.collect();
 
@@ -216,41 +279,88 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  revealHiddenItem(item: Item) {
+    this.tweens.add({
+      targets: item,
+      alpha: 1,
+      duration: 100,
+      onComplete: () => {
+        if (item && item.body) item.body.checkCollision.none = false;
+      },
+    });
+    item.revealText();
+  }
+
+  markBestItemInGroup(groupId: string) {
+    const bestItem = this.getBestItemInGroup(groupId);
+    if (bestItem) {
+      bestItem.setTexture(`${bestItem.config.itemType}Highlighted`);
+    }
+  }
   activateFlashlight() {
     this.hiddenItems.forEach((item: Item) => {
-      this.tweens.add({
-        targets: item,
-        alpha: 1,
-        duration: 100,
-        onComplete: () => {
-          if (item && item.body) item.body.checkCollision.none = false;
-        },
-      });
-      item.revealText();
+      this.revealHiddenItem(item);
     });
 
     Object.keys(this.itemGroups).forEach((groupId) => {
-      // Highlight the best item in the group
-      const bestItem = this.getBestItemInGroup(groupId);
-      if (bestItem) {
-        console.log(`Best item in group ${groupId}:`, bestItem.config.itemType);
-        bestItem.setTexture(`${bestItem.config.itemType}Highlighted`);
-        bestItem.setTint(0xffd700); // Highlight with golden tint
-      }
+      this.markBestItemInGroup(groupId);
+    });
+
+    this.player.activateFlashlightTexture();
+    this.isFlashLightActive = true;
+
+    // Continue to affect newly spawned items for FLASHLIGHT_ACTIVE_TIME ms
+    this.time.addEvent({
+      delay: GameConstants.FLASHLIGHT_ACTIVE_TIME,
+      callback: () => {
+        this.isFlashLightActive = false;
+      },
     });
   }
 
   getBestItemInGroup(groupId: string): Item | null {
     const itemGroup = this.itemGroups[groupId];
     let bestItem: Item | null = null;
-    let bestValue = -Infinity;
+    let bestNextSecondConversionRate = -Infinity;
 
     itemGroup.getChildren().forEach((itemGO: GameObjects.GameObject) => {
       const item = itemGO as Item;
-      if (item.config.value > bestValue) {
+      const { conversionRate, retentionRate, pageVisitsPerSecond } =
+        this.getUpdatedMetrics(item.config.itemType, item.config.value);
+
+      const { retainedUsers: firstRetainedUsers } = this.calculatePurchases(
+        pageVisitsPerSecond,
+        this.retainedUsers,
+        conversionRate,
+        retentionRate
+      );
+
+      // We considering the best item based on the conversion one second AFTER the immediate second,
+      // to take into account the increase in retention. This will not be accurate in the latest
+      // second of the game.
+      const { conversions } = this.calculatePurchases(
+        pageVisitsPerSecond,
+        firstRetainedUsers,
+        conversionRate,
+        retentionRate
+      );
+
+      item.config.itemType;
+      if (
+        conversions > bestNextSecondConversionRate ||
+        // Because the conversions are rounded, in case it's the same result
+        // we want to take the higher value item for the long term affect
+        (conversions == bestNextSecondConversionRate &&
+          item.config.itemType == bestItem?.config.itemType &&
+          item.config.value > bestItem.config.value)
+      ) {
         bestItem = item;
-        bestValue = item.config.value;
+        bestNextSecondConversionRate = conversions;
       }
+
+      console.log(
+        `Conversions for item type ${item.config.itemType} with value ${item.config.value} is ${conversions}`
+      );
     });
 
     return bestItem;

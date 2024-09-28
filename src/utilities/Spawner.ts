@@ -6,63 +6,76 @@ import { GameConstants, itemSettings } from "../consts";
 export default class Spawner {
   private scene: Phaser.Scene;
   private lanes: number[];
-  //private spawnTimer!: Phaser.Time.TimerEvent;
+  private regularItemSpawnEvent!: Phaser.Time.TimerEvent;
+  private hiddenItemSpawnEvent!: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene, lanes: number[]) {
     this.scene = scene;
     this.lanes = lanes;
-    this.startSpawningRegularItems();
-    this.startSpawningHiddenItems();
+    this.startSpawning();
   }
 
-  startSpawningRegularItems() {
-    this.scene.time.addEvent({
-      delay: 2000, // Adjust spawn rate as needed
+  startSpawning() {
+    this.spawnRegularItems();
+
+    this.scheduleRegularItemSpawning(5000);
+    this.scheduleHiddenItemSpawning(6000, 10000);
+    this.adjustSpawnRates();
+  }
+
+  // Function to schedule regular item spawning
+  scheduleRegularItemSpawning(delay: number) {
+    // If a timer already exists, remove it before scheduling a new one
+    if (this.regularItemSpawnEvent) {
+      this.regularItemSpawnEvent.remove();
+    }
+
+    // Schedule new regular item timer
+    this.regularItemSpawnEvent = this.scene.time.addEvent({
+      delay: delay,
       callback: this.spawnRegularItems,
       callbackScope: this,
       loop: true,
     });
   }
 
-  startSpawningHiddenItems() {
-    this.scene.time.addEvent({
-      delay: 1050, // Adjust spawn rate as needed
-      callback: this.spawnHiddenItems,
-      callbackScope: this,
-      loop: true,
-    });
+  // Function to schedule hidden item spawning with random delay between min and max for each spawn
+  scheduleHiddenItemSpawning(minDelay: number, maxDelay: number) {
+    if (this.hiddenItemSpawnEvent) {
+      this.hiddenItemSpawnEvent.remove();
+    }
+
+    // Function to spawn hidden items with random delay
+    const spawnHiddenWithRandomDelay = () => {
+      this.spawnHiddenItems();
+
+      // Random delay for the next spawn
+      const nextDelay = Phaser.Math.Between(minDelay, maxDelay);
+
+      // Schedule the next event with a new random delay
+      this.hiddenItemSpawnEvent = this.scene.time.delayedCall(nextDelay, () => {
+        spawnHiddenWithRandomDelay(); // Recursively schedule the next spawn
+      });
+    };
+
+    // Start the first spawn with a random delay
+    const initialDelay = Phaser.Math.Between(minDelay, maxDelay);
+    this.scene.time.delayedCall(initialDelay, spawnHiddenWithRandomDelay);
   }
 
-  spawnHiddenItems() {
-    const hiddenItemType = Phaser.Utils.Array.GetRandom(
-      GameConstants.ITEM_TYPES
-    );
-    const hiddenItemValue = this.getRandomValueForItem(hiddenItemType);
-    const hiddenItemTexture = hiddenItemType;
+  adjustSpawnRates() {
+    this.scene.time.delayedCall(20000, () => {
+      this.scheduleRegularItemSpawning(3500);
+    });
 
-    // Hidden item in a random lane
-    const randomLane = Phaser.Utils.Array.GetRandom(this.lanes);
-    const hiddenItem = new Item(
-      this.scene,
-      1000,
-      randomLane,
-      hiddenItemTexture,
-      {
-        itemType: hiddenItemType,
-        value: hiddenItemValue,
-        isHidden: true,
-      }
-    );
-    hiddenItem.setAlpha(0.1);
-    hiddenItem.body.checkCollision.none = true;
-
-    this.scene.events.emit("hiddenItemCreated", hiddenItem);
+    this.scene.time.delayedCall(40000, () => {
+      this.scheduleRegularItemSpawning(2000);
+    });
   }
 
   spawnRegularItems() {
     const groupId = Phaser.Utils.String.UUID();
 
-    // Group to hold all items
     const currentItemsGroup = this.scene.physics.add.group({
       runChildUpdate: true,
       active: true,
@@ -89,19 +102,41 @@ export default class Spawner {
       currentItemsGroup.add(item);
     });
 
-    // Save this item group to later handle flashlight activation
     this.scene.events.emit("newItemGroup", groupId, currentItemsGroup);
+  }
+
+  spawnHiddenItems() {
+    const hiddenItemType = Phaser.Utils.Array.GetRandom(
+      GameConstants.ITEM_TYPES
+    );
+    const hiddenItemValue = this.getRandomValueForItem(hiddenItemType);
+    const hiddenItemTexture = hiddenItemType;
+
+    const randomLane = Phaser.Utils.Array.GetRandom(this.lanes);
+    const hiddenItem = new Item(
+      this.scene,
+      1000,
+      randomLane,
+      hiddenItemTexture,
+      {
+        itemType: hiddenItemType,
+        value: hiddenItemValue,
+        isHidden: true,
+      }
+    );
+    hiddenItem.setAlpha(0.1);
+    hiddenItem.body.checkCollision.none = true;
+
+    this.scene.events.emit("hiddenItemCreated", hiddenItem);
   }
 
   getRandomValueForItem(itemType: string): number {
     const settings = itemSettings[itemType];
 
     if (!settings) {
-      // Return 0 if the item type doesn't exist in the dictionary
       return 0;
     }
 
-    // If it's a percentage, return a float value between min and max, otherwise return an integer
     return settings.isFloatRange
       ? Phaser.Math.FloatBetween(settings.min, settings.max)
       : Phaser.Math.Between(settings.min, settings.max);

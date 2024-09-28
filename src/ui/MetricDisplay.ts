@@ -1,5 +1,6 @@
 // src/ui/MetricDisplay.ts
 import Phaser from "phaser";
+import { defaultTextStyle } from "../consts";
 
 export type MetricDisplayConfig = {
   suffix?: string;
@@ -15,24 +16,15 @@ const defaultConfig: MetricDisplayConfig = {
 
 export default class MetricDisplay extends Phaser.GameObjects.Text {
   private value: number | string = -1;
-  private label: string;
   private config: MetricDisplayConfig;
 
   constructor(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    label: string,
     metricDisplayConfig: MetricDisplayConfig
   ) {
-    const textStyle = {
-      fontSize: "24px",
-      fontFamily: "Georgia, Arial, sans-serif", // A nice serif/sans-serif combination
-      fontWeight: "bold", // Makes the font bold
-      color: "#000000",
-    };
-    super(scene, x, y, "", textStyle);
-    this.label = label;
+    super(scene, x, y, "", defaultTextStyle);
     this.config = {
       ...defaultConfig,
       ...metricDisplayConfig,
@@ -49,17 +41,17 @@ export default class MetricDisplay extends Phaser.GameObjects.Text {
 
     // Check if the value has changed
     if (newValue !== String(this.value)) {
-      this.setText(`${this.label}: ${newValue}${this.config.suffix}`);
+      this.setText(`${newValue}${this.config.suffix}`);
       this.value = newValue;
 
       // Animate if configured
       if (this.config.shouldAnimate) {
         this.scene.tweens.add({
           targets: this,
-          scaleX: 1.1,
-          scaleY: 1.1,
+          scaleX: 1.2,
+          scaleY: 1.2,
           yoyo: true,
-          duration: 200,
+          duration: 250,
         });
       }
     }

@@ -42,6 +42,7 @@ export default class Item extends Phaser.Physics.Arcade.Sprite {
     this.body.setSize(itemWidth, itemHeight);
     this.body.setImmovable(false);
     this.body.setAllowGravity(false);
+    this.setDepth(2);
 
     this.createValueText();
   }
@@ -67,10 +68,6 @@ export default class Item extends Phaser.Physics.Arcade.Sprite {
         this.valueText.setPosition(newX, newY);
       }
     }
-
-    // Update the position of the text to stay aligned with the item
-    //this.valueText.setX(this.x + 30);
-    //this.valueText.setY(this.y - 10);
   }
 
   createValueText() {
@@ -81,8 +78,8 @@ export default class Item extends Phaser.Physics.Arcade.Sprite {
     // Create text positioned to the right of the item
     this.valueText = this.scene.add.text(
       this.x + 30,
-      this.y - 10,
-      `+${itemValue}${
+      this.y - 8,
+      `${itemValue}${
         itemSettings[this.config.itemType].isPercentage ? "%" : ""
       }`,
       {

@@ -9,19 +9,31 @@ export class Leaderboard extends Phaser.Scene {
   }
 
   create() {
+    this.add.image(0, 0, "backgroundMenu").setOrigin(0, 0);
+    // Add the rectangle behind the text
+    const rectWidth = 700;
+    const rectHeight = 730;
+    const rectX = 150; // Center the rectangle horizontally
+    const rectY = 20; // Slightly above the "Leaderboard" title
+
+    // Rectangle for the title
+    const bgRectangle = this.add.graphics();
+    bgRectangle.fillStyle(0x1d4bff, 0.8); // Set color and alpha
+    bgRectangle.fillRoundedRect(rectX, rectY, rectWidth, rectHeight, 20); // Add rounded rectangle
+
     // Retrieve the player's score from the registry
     this.playerScore = this.registry.get("playerScore") || 0;
 
     this.scores = [
-      { name: "Amir", score: 145009 },
-      { name: "Josh", score: 142389 },
-      { name: "Ido", score: 141684 },
-      { name: "Anton", score: 140263 },
-      { name: "Katie", score: 144416 },
-      { name: "Opher", score: 143703 },
-      { name: "Pablo", score: 143030 },
-      { name: "Jason", score: 144777 },
-      { name: "Raz", score: 142202 },
+      { name: "Max 'Hedgie' AI", score: 12445 },
+      { name: "James 'Pogačar' Hawkins", score: 867 },
+      { name: "Tim 'Coding Kid' Glaser", score: 835 },
+      { name: "Marius 'Kissing Dinosaurs' Andra", score: 757 },
+      { name: "Eric 'Tailor' Duong", score: 935 },
+      { name: "James 'Almost Pilot' Greenhill", score: 853 },
+      { name: "Lottie 'Graphics Genius' Coxon", score: 973 },
+      { name: "Michael 'Lego Master' Matolka", score: 835 },
+      { name: "Charles 'Sandwich King' Cook", score: 1024 },
       { name: "You!", score: this.playerScore }, // Player score retrieved from registry
     ];
 
@@ -30,13 +42,13 @@ export class Leaderboard extends Phaser.Scene {
 
     // Modern and engaging design - Adding the leaderboard
     const startY = 150; // Starting y position for the leaderboard
-    const startX = 300; // Starting x position for the leaderboard
+    const startX = 200; // Starting x position for the leaderboard
 
     this.add
-      .text(512, 50, "Leaderboard", {
+      .text(512, 80, "Leaderboard", {
         fontFamily: "Arial Black",
         fontSize: 48,
-        color: "#00ff00",
+        color: "#FFD700",
         align: "center",
       })
       .setOrigin(0.5);
@@ -49,17 +61,17 @@ export class Leaderboard extends Phaser.Scene {
       this.add.text(startX, startY + i * 50, `${i + 1}. ${player.name}`, {
         fontFamily: "Arial",
         fontSize: fontSize,
-        color: player.name === "You!" ? "#ffcc00" : "#ffffff", // Highlight "You!" in gold
+        color: player.name === "You!" ? "#FFD700" : "#ffffff",
       });
 
       this.add.text(
-        startX + 300,
+        startX + 500,
         startY + i * 50,
         player.score.toLocaleString(),
         {
           fontFamily: "Arial",
           fontSize: fontSize,
-          color: player.name === "You!" ? "#ffcc00" : "#ffffff", // Highlight "You!" in gold
+          color: player.name === "You!" ? "#FFD700" : "#ffffff",
         }
       );
     }
@@ -71,10 +83,11 @@ export class Leaderboard extends Phaser.Scene {
         color: "#ffffff",
         align: "center",
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setAlpha(0.7);
 
     this.input.once("pointerdown", () => {
-      this.scene.start("MainMenu");
+      this.scene.start("MenuScene");
     });
   }
 }

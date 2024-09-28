@@ -6,11 +6,12 @@ import { Leaderboard } from "./scenes/LeaderboardScene";
 import GameScene from "./scenes/GameScene";
 import { MenuScene } from "./scenes/MenuScene";
 import UIScene from "./scenes/UIScene";
+import { GameConstants } from "./consts";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 1024, // Adjust as needed
-  height: 768, // Adjust as needed
+  width: GameConstants.GAME_WIDTH,
+  height: GameConstants.GAME_HEIGHT,
   backgroundColor: "#EEEFE9",
   physics: {
     default: "arcade",

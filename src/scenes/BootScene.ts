@@ -8,7 +8,7 @@ export default class BootScene extends Phaser.Scene {
 
   preload() {
     // Load assets
-    this.load.image("background", "assets/background.webp");
+    this.load.image("backgroundMenu", "assets/backgroundMenu.png");
     // Load other necessary assets (backgrounds, etc.)
   }
 
