@@ -9,6 +9,9 @@ export class Leaderboard extends Phaser.Scene {
   }
 
   create() {
+    // Stop any lingering leftovers from the game if exist
+    this.scene.stop("GameScene");
+
     this.add.image(0, 0, "backgroundMenu").setOrigin(0, 0);
     // Add the rectangle behind the text
     const rectWidth = 700;

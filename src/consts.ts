@@ -10,16 +10,19 @@ export const GameConstants = {
   LANE_DRAWING_Y_POSITIONS: [280, 360, 440, 520],
   TEXT_COLOR: "#F55001",
   TEXT_COLOR_NUMBER: 0xf55001,
-  SPEED_AT_FIRST_STAGE: -200,
-  SPEED_AT_SECOND_STAGE: -300,
+  SPAWNING_RATE_AT_FIRST_STAGE: 4000,
+  SPAWNING_RATE_AT_SECOND_STAGE: 3000,
+  SPAWNING_RATE_AT_THIRD_STAGE: 2000,
+  SPEED_AT_FIRST_STAGE: -150,
+  SPEED_AT_SECOND_STAGE: -270,
   SPEED_AT_THIRD_STAGE: -350,
-  SECOND_STAGE_SWITCH_TIME: 40,
-  THIRD_STAGE_SWITCH_TIME: 20,
+  START_SECOND_STAGE_MS: 20000,
+  START_THIRD_STAGE_MS: 40000,
   FLASHLIGHT_ACTIVE_TIME: 3000,
   GAME_WIDTH: 1024,
   GAME_HEIGHT: 768,
   STICK_FIGURE_SCALE: 0.6,
-  HOGLIGHT_COOLDOWN: 9,
+  ACTION_BUTTON_COOLDOWN: 9,
 };
 
 export const itemSettings: {
@@ -33,11 +36,11 @@ export const itemSettings: {
   conversion: {
     isPercentage: true,
     isFloatRange: true,
-    min: 0.5,
-    max: 1.4,
+    min: 0.4,
+    max: 1.2,
   },
-  funnel: { isPercentage: false, isFloatRange: false, min: 8, max: 15 },
-  retention: { isPercentage: true, isFloatRange: false, min: 5, max: 10 },
+  funnel: { isPercentage: false, isFloatRange: false, min: 7, max: 13 },
+  retention: { isPercentage: true, isFloatRange: false, min: 4, max: 11 },
 };
 
 export const defaultTextStyle = {

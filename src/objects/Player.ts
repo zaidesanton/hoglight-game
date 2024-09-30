@@ -42,7 +42,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
       // Activate flashlight when the SPACE key is pressed
       keyboard.on("keydown-SPACE", () => {
-        this.scene.events.emit("hoglightButtonPressed");
+        this.scene.events.emit("actionButtonPressed");
       });
     }
 

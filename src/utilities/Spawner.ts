@@ -15,10 +15,21 @@ export default class Spawner {
     this.startSpawning();
   }
 
+  cleanup() {
+    if (this.hiddenItemSpawnEvent) {
+      this.hiddenItemSpawnEvent.remove();
+    }
+    if (this.regularItemSpawnEvent) {
+      this.regularItemSpawnEvent.remove();
+    }
+  }
+
   startSpawning() {
     this.spawnRegularItems();
 
-    this.scheduleRegularItemSpawning(5000);
+    this.scheduleRegularItemSpawning(
+      GameConstants.SPAWNING_RATE_AT_FIRST_STAGE
+    );
     this.scheduleHiddenItemSpawning(6000, 10000);
     this.adjustSpawnRates();
   }
@@ -64,12 +75,16 @@ export default class Spawner {
   }
 
   adjustSpawnRates() {
-    this.scene.time.delayedCall(20000, () => {
-      this.scheduleRegularItemSpawning(3500);
+    this.scene.time.delayedCall(GameConstants.START_THIRD_STAGE_MS, () => {
+      this.scheduleRegularItemSpawning(
+        GameConstants.SPAWNING_RATE_AT_THIRD_STAGE
+      );
     });
 
-    this.scene.time.delayedCall(40000, () => {
-      this.scheduleRegularItemSpawning(2000);
+    this.scene.time.delayedCall(GameConstants.START_SECOND_STAGE_MS, () => {
+      this.scheduleRegularItemSpawning(
+        GameConstants.SPAWNING_RATE_AT_SECOND_STAGE
+      );
     });
   }
 

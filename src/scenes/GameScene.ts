@@ -9,24 +9,40 @@ import { Metrics } from "./UIScene";
 export default class GameScene extends Phaser.Scene {
   private player!: Player;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private itemGroups: { [key: string]: Phaser.Physics.Arcade.Group } = {};
+  private itemGroups: { [key: string]: Phaser.Physics.Arcade.Group };
   private hiddenItems: Item[] = [];
-  //private _spawner!: Spawner;
+  private gameTimer: Phaser.Time.TimerEvent;
+  private purchasesTimer: Phaser.Time.TimerEvent;
+  private itemsSpawner: Spawner;
 
   // Game metrics
-  private conversionRate = GameConstants.INITIAL_CONVERSION_RATE;
-  private pageVisitsPerSecond = GameConstants.INITIAL_PAGE_VISITS;
-  private retentionRate = GameConstants.INITIAL_RETENTION_RATE;
-  private totalPurchases = 0;
-  private retainedUsers = 0;
-  private timeLeft = 60; // Game duration in seconds
-  private isFlashLightActive = false;
+  private conversionRate: number;
+  private pageVisitsPerSecond: number;
+  private retentionRate: number;
+  private totalPurchases: number;
+  private retainedUsers: number;
+  private timeLeft: number;
+  private isFlashLightActive: boolean;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
+  reset() {
+    this.conversionRate = GameConstants.INITIAL_CONVERSION_RATE;
+    this.pageVisitsPerSecond = GameConstants.INITIAL_PAGE_VISITS;
+    this.retentionRate = GameConstants.INITIAL_RETENTION_RATE;
+    this.totalPurchases = 0;
+    this.retainedUsers = 0;
+    this.timeLeft = 60;
+    this.isFlashLightActive = false;
+    this.itemGroups = {};
+  }
+
   create() {
+    this.cleanup();
+    this.reset();
+
     // Initialize player
     const playerStartX = 50;
     const playerStartY = GameConstants.LANE_Y_POSITIONS[1] - 5;
@@ -46,37 +62,53 @@ export default class GameScene extends Phaser.Scene {
     this.events.on("flashlightActivated", this.activateFlashlight, this);
     this.events.on("newItemGroup", this.handleNewItemGroup, this);
     this.events.on("hiddenItemCreated", this.handleHiddenItemCreated, this);
+
     const UIScene = this.scene.get("UIScene");
     UIScene.events.on("finishedTutorial", this.startGame, this);
   }
 
+  cleanup() {
+    this.events.off("updateMetricsDisplay");
+    this.events.off("newItemGroup");
+    const UIScene = this.scene.get("UIScene");
+    UIScene.events.off("finishedTutorial");
+  }
+
   startGame() {
-    console.log("Start game called");
-    // Set up game timer
-    this.time.addEvent({
+    if (this.gameTimer) this.gameTimer.remove();
+    this.gameTimer = this.time.addEvent({
       delay: 1000,
       callback: this.updateTimer,
       callbackScope: this,
       loop: true,
     });
 
+    if (this.purchasesTimer) this.purchasesTimer.remove();
     // Set up per-second scoring
-    this.time.addEvent({
+    this.purchasesTimer = this.time.addEvent({
       delay: 1000,
       callback: this.updatePurchases,
       callbackScope: this,
       loop: true,
     });
 
-    new Spawner(this, GameConstants.LANE_Y_POSITIONS);
+    if (this.itemsSpawner) {
+      this.itemsSpawner.cleanup();
+    }
+
+    console.log("Starting game called");
+    this.itemsSpawner = new Spawner(this, GameConstants.LANE_Y_POSITIONS);
     this.time.paused = false;
   }
 
   calculateCurrentSpeed() {
     let speed = GameConstants.SPEED_AT_FIRST_STAGE;
-    if (this.timeLeft <= GameConstants.THIRD_STAGE_SWITCH_TIME) {
+    if (this.timeLeft <= 60 - GameConstants.START_THIRD_STAGE_MS / 1000) {
       speed = GameConstants.SPEED_AT_THIRD_STAGE;
-    } else if (this.timeLeft <= GameConstants.SECOND_STAGE_SWITCH_TIME) {
+    } else if (
+      this.timeLeft <=
+      60 - GameConstants.START_SECOND_STAGE_MS / 1000
+    ) {
       speed = GameConstants.SPEED_AT_SECOND_STAGE;
     }
 
@@ -159,17 +191,18 @@ export default class GameScene extends Phaser.Scene {
         })
       );
     this.registry.set("playerScore", this.totalPurchases);
-
-    this.scene.remove("UIScene");
+    this.cleanup();
+    this.scene.stop("UIScene");
     this.scene.start("Leaderboard");
   }
+
   updateTimer() {
     this.timeLeft--;
     if (this.timeLeft <= 0) {
       this.handleGameEnd();
+    } else {
+      this.updateMetricsDisplay();
     }
-
-    this.updateMetricsDisplay();
   }
 
   calculatePurchases(
@@ -194,16 +227,19 @@ export default class GameScene extends Phaser.Scene {
   }
 
   updatePurchases() {
-    const { conversions, retainedUsers, totalPurchases } =
-      this.calculatePurchases(
-        this.pageVisitsPerSecond,
-        this.retainedUsers,
-        this.conversionRate,
-        this.retentionRate
-      );
-    this.totalPurchases = totalPurchases;
-    this.retainedUsers = retainedUsers;
-    this.updateMetricsDisplay(conversions);
+    if (this.timeLeft > 0) {
+      const { conversions, retainedUsers, totalPurchases } =
+        this.calculatePurchases(
+          this.pageVisitsPerSecond,
+          this.retainedUsers,
+          this.conversionRate,
+          this.retentionRate
+        );
+      this.totalPurchases = totalPurchases;
+      this.retainedUsers = retainedUsers;
+
+      this.updateMetricsDisplay(conversions);
+    }
   }
 
   // Method to update metrics when an item is collected
@@ -297,6 +333,7 @@ export default class GameScene extends Phaser.Scene {
       bestItem.setTexture(`${bestItem.config.itemType}Highlighted`);
     }
   }
+
   activateFlashlight() {
     this.hiddenItems.forEach((item: Item) => {
       this.revealHiddenItem(item);

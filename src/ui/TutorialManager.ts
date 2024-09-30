@@ -4,31 +4,43 @@ import { GameObjectWithLocation } from "../scenes/UIScene";
 import { animateText } from "./TextAnimator";
 import { GameConstants, defaultTextStyle } from "../consts";
 
+export enum TutorialLocation {
+  Middle,
+  Upper,
+}
+
 export type TutorialStepData = {
   text: string;
   // Passing a function do dynmically return the game objects, after they are created
   highlightedObjects: () => GameObjectWithLocation[];
   onTutorialFinished: () => void;
   onTutorialLoaded: (callback: () => void) => void;
+  tutorialLocation: TutorialLocation;
 };
 
 // All are optional, as a tutorial can be skipped at any moment
-export type TutorialStepObjects = {
+export type TutorialStepState = {
   tutorialText?: GameObjects.Text;
   overlay?: GameObjects.Graphics;
   lights?: GameObjects.PointLight[];
   data?: TutorialStepData;
   skipText?: GameObjects.Text;
+  nextText?: GameObjects.Text;
+  didStepFinishLoading: Boolean;
 };
 
 export default class TutorialManager {
   private currentScene: Scene;
-  private currentTutorialStep: TutorialStepObjects = {};
+  private currentTutorialStep: TutorialStepState = {
+    didStepFinishLoading: false,
+  };
   private skipTutorialsCallback: () => void;
-  public shouldSkipTutorials: Boolean = false;
+  public shouldSkipTutorials: Boolean;
 
   constructor(scene: Scene, skipTutorialsCallback: () => void) {
     this.currentScene = scene;
+    this.shouldSkipTutorials =
+      this.currentScene.registry.get("shouldSkipTutorials") || false;
     this.skipTutorialsCallback = skipTutorialsCallback;
   }
 
@@ -38,20 +50,24 @@ export default class TutorialManager {
     this.currentTutorialStep.overlay = overlay;
     this.currentTutorialStep.data = tutorialStepData;
 
-    const roundedRectX = 10;
-    const roundedRectY = GameConstants.LANE_DRAWING_Y_POSITIONS[0] - 10; // Adjust for your lane positions
-    const roundedRectWidth = this.currentScene.sys.canvas.width - 20;
-    const roundedRectHeight =
+    const tutorialRectX = 10;
+    const firstLanePosition = GameConstants.LANE_DRAWING_Y_POSITIONS[0];
+    const lastLanePosition =
       GameConstants.LANE_DRAWING_Y_POSITIONS[
         GameConstants.LANE_DRAWING_Y_POSITIONS.length - 1
-      ] -
-      roundedRectY +
-      10;
+      ];
+
+    let tutorialRectY = firstLanePosition - 10; // Adjust for your lane positions
+    if (tutorialStepData.tutorialLocation == TutorialLocation.Upper)
+      tutorialRectY = 10;
+
+    const roundedRectWidth = this.currentScene.sys.canvas.width - 20;
+    const roundedRectHeight = lastLanePosition - firstLanePosition + 20;
 
     overlay.fillStyle(0x000000, 0.8); // Black color, 70% opacity for the dimming effect
     overlay.fillRoundedRect(
-      roundedRectX,
-      roundedRectY,
+      tutorialRectX,
+      tutorialRectY,
       roundedRectWidth,
       roundedRectHeight,
       20
@@ -62,8 +78,14 @@ export default class TutorialManager {
     let spotlights: GameObjects.PointLight[] = [];
     let tutorialText: GameObjects.Text;
 
-    const skipText = this.createSkipText();
-    this.currentTutorialStep.skipText = skipText;
+    this.currentTutorialStep.skipText = this.createSkipAllText(
+      tutorialRectY,
+      roundedRectHeight
+    );
+    this.currentTutorialStep.nextText = this.createNextTutorialText(
+      tutorialRectY,
+      roundedRectHeight
+    );
 
     // Create the fade-in animation for the overlay (200ms)
     this.currentScene.tweens.add({
@@ -73,8 +95,8 @@ export default class TutorialManager {
       ease: "Power2",
       onComplete: () => {
         tutorialText = this.currentScene.add.text(
-          100,
-          GameConstants.LANE_Y_POSITIONS[0],
+          50,
+          tutorialRectY + 30,
           tutorialStepData.text,
           {
             ...defaultTextStyle,
@@ -110,17 +132,26 @@ export default class TutorialManager {
 
             this.currentTutorialStep.lights = spotlights;
 
-            // After finishing with the animations, allow to skip and pause the time
-            this.currentScene.tweens.add({
-              targets: spotlights,
-              alpha: 1, // Fade in spotlights
-              duration: 200,
-              ease: "Power2",
-              onComplete: () => {
-                skipText.setVisible(true);
-                this.currentScene.scene.get("GameScene").time.paused = true;
-              },
-            });
+            if (spotlights.length == 0) {
+              this.currentTutorialStep.skipText?.setVisible(true);
+              this.currentTutorialStep.nextText?.setVisible(true);
+              this.currentTutorialStep.didStepFinishLoading = true;
+              this.currentScene.scene.get("GameScene").time.paused = true;
+            } else {
+              // After finishing with the animations, allow to skip and pause the time
+              this.currentScene.tweens.add({
+                targets: spotlights,
+                alpha: 1, // Fade in spotlights
+                duration: 200,
+                ease: "Power2",
+                onComplete: () => {
+                  this.currentTutorialStep.skipText?.setVisible(true);
+                  this.currentTutorialStep.nextText?.setVisible(true);
+                  this.currentTutorialStep.didStepFinishLoading = true;
+                  this.currentScene.scene.get("GameScene").time.paused = true;
+                },
+              });
+            }
           });
         });
       },
@@ -135,20 +166,43 @@ export default class TutorialManager {
       this.currentTutorialStep.tutorialText.setVisible(false);
     if (this.currentTutorialStep.skipText)
       this.currentTutorialStep.skipText.destroy();
+    if (this.currentTutorialStep.nextText)
+      this.currentTutorialStep.nextText.destroy();
     if (this.currentTutorialStep.lights)
       this.currentTutorialStep.lights.forEach((light) => light.destroy());
 
-    this.currentTutorialStep = {};
+    this.currentTutorialStep = { didStepFinishLoading: false };
   }
 
-  createSkipText() {
+  createNextTutorialText(tutorialRectY: number, tutorialHeight: number) {
+    const nextTextX = this.currentScene.sys.canvas.width / 2;
+    const nextTextY = tutorialRectY + tutorialHeight - 25;
+
+    const nextText = this.currentScene.add.text(
+      nextTextX,
+      nextTextY,
+      "Click anywhere",
+      {
+        ...defaultTextStyle,
+        align: "center",
+        fontSize: "20px",
+        color: "#ffffff",
+      }
+    );
+    nextText.setOrigin(0.5, 0.5); // Center the text horizontally
+    nextText.setDepth(103);
+    nextText.setVisible(false);
+    return nextText;
+  }
+
+  createSkipAllText(tutorialRectY: number, tutorialHeight: number) {
     // Create skip text at the bottom center of the overlay
-    const skipTextX = this.currentScene.sys.canvas.width / 2;
-    const skipTextY = 500;
+    const skipTextX = this.currentScene.sys.canvas.width * 0.85;
+    const skipTextY = tutorialRectY + tutorialHeight - 25;
     const skipText = this.currentScene.add.text(
       skipTextX,
       skipTextY,
-      "Press here to skip tutorials",
+      "Click to skip tutorials",
       {
         ...defaultTextStyle,
         align: "center",
@@ -168,11 +222,15 @@ export default class TutorialManager {
   }
 
   handleTutorialStepCompletion() {
-    if (this.currentTutorialStep.data)
+    if (
+      this.currentTutorialStep.data &&
+      this.currentTutorialStep.didStepFinishLoading
+    )
       this.currentTutorialStep.data.onTutorialFinished();
   }
 
   skipTutorialPressed() {
+    this.currentScene.registry.set("shouldSkipTutorials", true);
     this.shouldSkipTutorials = true;
     this.closeTutorialStep();
     this.skipTutorialsCallback();

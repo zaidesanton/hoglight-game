@@ -2,7 +2,7 @@
 import Phaser, { GameObjects } from "phaser";
 import MetricDisplay from "../ui/MetricDisplay";
 import { GameConstants, defaultTextStyle, TutorialsConsts } from "../consts";
-import TutorialManager from "../ui/TutorialManager"; // Import TutorialManager
+import TutorialManager, { TutorialLocation } from "../ui/TutorialManager"; // Import TutorialManager
 
 export type Metrics = {
   conversionRate?: number;
@@ -21,22 +21,40 @@ export type GameObjectWithLocation =
 // const TutorialSteps: { [key: string]: TutorialStepData } = [{}];
 export default class UIScene extends Phaser.Scene {
   private tutorialManager: TutorialManager;
-  private conversionRateText: MetricDisplay;
-  private pageVisitsText: MetricDisplay;
-  private retentionRateText: MetricDisplay;
-  private totalPurchasesText: MetricDisplay;
-  private timeLeftText: MetricDisplay;
+  private conversionRateText?: MetricDisplay;
+  private pageVisitsText?: MetricDisplay;
+  private retentionRateText?: MetricDisplay;
+  private totalPurchasesText?: MetricDisplay;
+  private timeLeftText?: MetricDisplay;
   private basicInstructionText: GameObjects.Text;
-  private tutorialObjectsToDeleteAfterFinish: GameObjects.GameObject[] = [];
-  private wereFunnelFiguresCreate: boolean = false;
-  private hoglightButton: GameObjects.Graphics;
-  private hoglightButtonText: GameObjects.Text;
+  private tutorialObjectsToDeleteAfterFinish: GameObjects.GameObject[];
+  private wereFunnelFiguresCreate: boolean;
+  private actionButton: GameObjects.Graphics;
+  private actionButtonText: GameObjects.Text;
+  private actionCooldownTimer: Phaser.Time.TimerEvent;
+  private isActionButtonDisabled: boolean;
+  private wasActionButtonPressed: boolean;
 
   constructor() {
     super({ key: "UIScene" });
   }
 
+  reset() {
+    if (this.totalPurchasesText) this.totalPurchasesText = undefined;
+    if (this.conversionRateText) this.conversionRateText = undefined;
+    if (this.pageVisitsText) this.pageVisitsText = undefined;
+    if (this.retentionRateText) this.retentionRateText = undefined;
+    if (this.timeLeftText) this.timeLeftText = undefined;
+
+    this.wasActionButtonPressed = false;
+    this.isActionButtonDisabled = false;
+    this.wereFunnelFiguresCreate = false;
+    this.tutorialObjectsToDeleteAfterFinish = [];
+  }
+
   create() {
+    // In case the scene runs for the second time
+    this.reset();
     this.tutorialManager = new TutorialManager(this, () =>
       this.finishGameStartTutorial()
     );
@@ -59,11 +77,11 @@ export default class UIScene extends Phaser.Scene {
     );
 
     gameScene.events.on(
-      "hoglightButtonPressed",
-      () => this.hoglightButtonPressed(),
+      "actionButtonPressed",
+      () => this.triggerActionButtonTutorial(),
       this
     );
-    this.createHoglightButton();
+    this.createActionButton();
     this.updateMetricsDisplay({
       pageVisitsPerSecond: GameConstants.INITIAL_PAGE_VISITS,
       retentionRate: GameConstants.INITIAL_RETENTION_RATE,
@@ -72,12 +90,38 @@ export default class UIScene extends Phaser.Scene {
     });
 
     // Initialize TutorialManager
-    this.createFunnelTutorialStep();
+    if (this.tutorialManager.shouldSkipTutorials)
+      this.finishGameStartTutorial();
+    else this.createFunnelTutorialStep();
+  }
+
+  createActionButtonTutorialStep() {
+    const gameScene = this.scene.get("GameScene");
+    gameScene.time.paused = true;
+    gameScene.physics.world.pause();
+
+    this.tutorialManager.createTutorialStep({
+      highlightedObjects: () => [],
+      text: "Nice move!\n\nThe hoglight button will reveal hidden items to collect, AND show you the best option among each trio. \n\nThere is a cooldown, so use it carefully!",
+      onTutorialFinished: () => {
+        //const gameScene = this.scene.get("GameScene");
+        this.tutorialManager.closeTutorialStep();
+        this.actionCooldownTimer.paused = false;
+        gameScene.time.paused = false;
+        gameScene.physics.world.resume();
+      },
+      onTutorialLoaded: (callback: () => void) => {
+        this.actionButtonPressed();
+        this.actionCooldownTimer.paused = true;
+        callback();
+      },
+      tutorialLocation: TutorialLocation.Middle,
+    });
   }
 
   createFunnelTutorialStep() {
     this.tutorialManager.createTutorialStep({
-      highlightedObjects: () => [this.pageVisitsText],
+      highlightedObjects: () => [this.pageVisitsText!],
       text: "Welcome to Hoglight Blitz!\n\nYou have 60 seconds to get the maximum purchases for your SaaS.\n\nHere you can see the number of users who visit your site each second!",
       onTutorialFinished: () => {
         this.tutorialManager.closeTutorialStep();
@@ -85,12 +129,13 @@ export default class UIScene extends Phaser.Scene {
       },
       onTutorialLoaded: (callback: () => void) =>
         this.loadFunnelTutorialStepObjects(callback),
+      tutorialLocation: TutorialLocation.Middle,
     });
   }
 
   createConversionTutorialStep() {
     this.tutorialManager.createTutorialStep({
-      highlightedObjects: () => [this.conversionRateText],
+      highlightedObjects: () => [this.conversionRateText!],
       text: "Each second, some of the users who visit your site will purchase a subscription.\n\nThis is your conversion rate. Keep an eye on it!",
       onTutorialFinished: () => {
         this.tutorialManager.closeTutorialStep();
@@ -98,12 +143,13 @@ export default class UIScene extends Phaser.Scene {
       },
       onTutorialLoaded: (callback: () => void) =>
         this.loadConversionTutorialStepObjects(callback),
+      tutorialLocation: TutorialLocation.Middle,
     });
   }
 
   createRetentionTutorialStep() {
     this.tutorialManager.createTutorialStep({
-      highlightedObjects: () => [this.retentionRateText],
+      highlightedObjects: () => [this.retentionRateText!],
       text: "Most of the non-converted users will leave you. That's life.\n\nSome of them, will give you another chance! Well, after you increase your retention rate - right now you are at a sad 0.",
       onTutorialFinished: () => {
         this.tutorialManager.closeTutorialStep();
@@ -111,6 +157,7 @@ export default class UIScene extends Phaser.Scene {
       },
       onTutorialLoaded: (callback: () => void) =>
         this.loadRetentionTutorialStepObjects(callback),
+      tutorialLocation: TutorialLocation.Middle,
     });
   }
 
@@ -145,7 +192,7 @@ export default class UIScene extends Phaser.Scene {
 
   animatePurchasesChange(totalPurchases: number, newConversions?: number) {
     if (!newConversions) {
-      this.animateMetricChange(this.totalPurchasesText, totalPurchases);
+      this.animateMetricChange(this.totalPurchasesText!, totalPurchases);
     } else {
       const purchaseText = this.add.text(420, 160, `+${newConversions}`, {
         fontSize: "28px",
@@ -164,14 +211,14 @@ export default class UIScene extends Phaser.Scene {
             purchaseText.destroy();
 
             // Once the purchaseText animation finishes, update the total purchases metric to 5
-            this.animateMetricChange(this.totalPurchasesText, totalPurchases);
+            this.animateMetricChange(this.totalPurchasesText!, totalPurchases);
           },
         });
       }
     }
   }
 
-  createHoglightButton() {
+  createActionButton() {
     const radius = 20;
     const button = this.add.graphics();
     const buttonWidth = 200;
@@ -225,22 +272,36 @@ export default class UIScene extends Phaser.Scene {
     });
 
     // Handle button click (flashlight activation)
-    button.on("pointerdown", () => this.hoglightButtonPressed());
+    button.on("pointerdown", () => this.triggerActionButtonTutorial());
 
-    this.hoglightButton = button;
-    this.hoglightButtonText = buttonText;
+    this.actionButton = button;
+    this.actionButtonText = buttonText;
   }
 
-  hoglightButtonPressed() {
-    this.scene.get("GameScene").events.emit("flashlightActivated");
-    this.input.setDefaultCursor("default");
+  triggerActionButtonTutorial() {
+    if (
+      !this.wasActionButtonPressed &&
+      !this.tutorialManager.shouldSkipTutorials
+    ) {
+      this.createActionButtonTutorialStep();
+      this.wasActionButtonPressed = true;
+    } else {
+      this.actionButtonPressed();
+    }
+  }
 
-    // Start cooldown logic
-    this.startButtonCooldown(
-      this.hoglightButton,
-      this.hoglightButtonText,
-      GameConstants.HOGLIGHT_COOLDOWN
-    );
+  actionButtonPressed() {
+    if (!this.isActionButtonDisabled) {
+      this.scene.get("GameScene").events.emit("flashlightActivated");
+      this.input.setDefaultCursor("default");
+
+      // Start cooldown logic
+      this.startButtonCooldown(
+        this.actionButton,
+        this.actionButtonText,
+        GameConstants.ACTION_BUTTON_COOLDOWN
+      );
+    }
   }
 
   startButtonCooldown(
@@ -253,9 +314,13 @@ export default class UIScene extends Phaser.Scene {
     button.disableInteractive();
     buttonText.setText(`${cooldownTime}s`);
     button.setAlpha(0.3); // Reduce alpha to gray out
+    this.isActionButtonDisabled = true;
 
+    if (this.actionCooldownTimer) {
+      this.actionCooldownTimer.destroy();
+    }
     // Update the button text to show the cooldown timer
-    const countdownInterval = this.time.addEvent({
+    this.actionCooldownTimer = this.time.addEvent({
       delay: 1000, // 1 second delay for the countdown
       callback: () => {
         remainingTime--;
@@ -264,10 +329,11 @@ export default class UIScene extends Phaser.Scene {
 
         // When the cooldown finishes, reset the button
         if (remainingTime <= 0) {
-          countdownInterval.remove(false); // Stop the countdown
+          this.actionCooldownTimer.remove(false); // Stop the countdown
           button.setInteractive(); // Re-enable the button
           buttonText.setText("Hoglight"); // Reset the button text
           button.setAlpha(1);
+          this.isActionButtonDisabled = false;
         }
       },
       loop: true,
